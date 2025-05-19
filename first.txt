@@ -1,0 +1,58 @@
+import telebot
+from telebot import types
+
+bot = telebot.TeleBot("//")
+
+# Главное меню
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Ресторан", "Спа-салон", "Автосалон")
+    bot.send_message(message.chat.id, "Выберите сферу бизнеса:", reply_markup=markup)
+
+# Обработчик всех текстовых сообщений
+@bot.message_handler(func=lambda message: True)
+def handle_scenarios(message):
+    chat_id = message.chat.id
+
+    if message.text == "Ресторан":
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Игнорировать жалобу", "Извиниться", "Проверить качество")
+        bot.send_message(chat_id, """🍽 *Ресторан*
+Начальный капитал: 5 000 000 руб
+Рейтинг: 5.0
+
+Ситуация 1: Клиент жалуется в соцсетях на несвежее блюдо.""",
+                        parse_mode='Markdown', reply_markup=markup)
+
+    elif message.text == "Спа-салон":
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Уволить сотрудника", "Нанять нового", "Провести обучение")
+        bot.send_message(chat_id, """💆 *Спа-салон*
+Начальный капитал: 3 000 000 руб
+Рейтинг: 4.7
+
+Ситуация 1: Мастер сделал болезненную процедуру.""",
+                        parse_mode='Markdown', reply_markup=markup)
+
+    elif message.text == "Автосалон":
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Снизить цену", "Дать доп. гарантию", "Предложить услуги")
+        bot.send_message(chat_id, """🚗 *Автосалон*
+Начальный капитал: 10 000 000 руб
+Рейтинг: 4.9
+
+Ситуация 1: Клиент недоведен пробегом автомобиля.""",
+                        parse_mode='Markdown', reply_markup=markup)
+
+    # Обработка следующих шагов для ресторана
+    elif message.text == "Игнорировать жалобу":
+        bot.send_message(chat_id, "Рейтинг упал до 3.2. Клиенты массово жалуются.")
+
+    elif message.text == "Извиниться":
+        bot.send_message(chat_id, "Рейтинг сохранился. Клиент принял извинения.")
+
+    # ... Аналогично для других вариантов
+
+bot.polling()
+
