@@ -1,0 +1,319 @@
+import telebot
+from telebot import types
+
+bot = telebot.TeleBot("ВАШ_TELEGRAM_BOT_TOKEN")
+
+# Глобальные переменные для хранения состояния
+user_data = {}
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Ресторан", "Спа-салон", "Автосалон")
+    bot.send_message(message.chat.id, "Выберите сферу бизнеса:", reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text in ["Ресторан", "Спа-салон", "Автосалон"])
+def handle_business_choice(message):
+    chat_id = message.chat.id
+    business = message.text
+
+    user_data[chat_id] = {
+        'business': business,
+        'capital': 5000000 if business == "Ресторан" else 3000000 if business == "Спа-салон" else 50000000,
+        'rating': 5.0,
+        'stage': 'initial'  # Текущий этап игры
+    }
+    
+    if business == "Ресторан":
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Игнорировать жалобу", "Извиниться и предложить скидку", "Провести проверку качества", "Провести мастер-класс")
+        bot.send_message(chat_id, f""" {business}
+	Начальный капитал: {user_data[chat_id]['capital']:,} руб
+	Рейтинг: {user_data[chat_id]['rating']}
+	Ситуация 1: Клиент жалуется в соцсетях на несвежее блюдо.""", reply_markup=markup)
+	@bot.message_handler(func=lambda message: message.text in ["Игнорировать жалобу", "Извиниться и предложить скидку", "Провеcти проверку качества"])
+	chat_id = message.chat.id
+    	choice = message.text
+	response = ""
+    	if choice == "Игнорировать жалобу":
+        	user_data[chat_id]['rating'] -= 0.3
+        	response = """ Вы проигнорировали жалобу:
++Капитал: +0 руб.
+-Рейтинг: -0.3
+-Прибыль: -5% (снижение числа клиентов: 50 клиентов)
+Аргументация и детализация финансов:Экономия средств. Негатив снижает доверие, уменьшая клиентов (50 заказов по 5 000 руб.), снижая прибыль.
+Экономия средств. Негатив снижает доверие, уменьшая клиентов (50 заказов по 5 000 руб.), снижая прибыль.
+Плохое решение: экономия краткосрочна, но репутационные потери и снижение прибыли вредят бизнесу. 0 баллов.""".format(rating=user_data[chat_id]['rating'])
+		user_data[chat_id]['rating'] -= 0.3
+    elif choice == "Извиниться и предложить скидку":
+        user_data[chat_id]['rating'] += 0.2
+        user_data[chat_id]['capital'] -= 50000
+        response = """ Вы извинились и предложили 50% скидку:
++ Рейтинг вырос до {rating:.1f}
+- Капитал: 50 000 руб (скидки: 10 заказов по 5 000 руб.)
+- Прибыль: +0% (нейтральный поток клиентов)
+Затраты на скидки (10 заказов по 5 000 руб.). Репутация восстанавливается, клиенты возвращаются, прибыль нейтральна.
+Умеренное решение: низкие затраты и восстановление репутации, но эффект ограничен.
+10 баллов.""".format(rating=user_data[chat_id]['rating'])
+	elif choice == "Провести проверку качества":
+        	user_data[chat_id]['capital'] -= 150 000
+        	response = """ Вы провели аудит поставщиков и выплатили компенсацию клиенту:
+- Капитал: -150 000 руб. (аудит: 100 000 руб., компенсация: 50 000 руб.)
++ Рейтинг изменился на +0.4
++Прибыль: +5% (рост числа клиентов: 50 клиентов)
+Затраты: аудит (100 000 руб.), компенсация (50 000 руб.). Прозрачность привлекает клиентов (50 заказов по 5 000 руб.), увеличивая прибыль.
+Хорошее решение: затраты окупаются ростом репутации и прибыли, укрепляя доверие. 15 баллов.
+Отличное решение: генерирует доход, повышает репутацию и лояльность, создавая маркетинговую ценность. 20 баллов."""
+	elif choice -- "Провести мастер-класс":
+		user_data[chat_id]['capital'] += 100000
+		user_data[chat_id]['rating'] += 0.3
+		response = """Вы провели мастер-класс от шеф-повара:
++Капитал: +100000 руб.(билеты: 20 по 5000 руб.)
++Рейтинг изменился на +0.3
++Прибыль: +3% (доп. заказы: 30 клиентов)
+Доход от билетов (20 по 5 000 руб.). Мероприятие повышает лояльность, привлекая клиентов (30 заказов по 3 000 руб.), что увеличивает прибыль.
+Отличное решение: генерирует доход, повышает репутацию и лояльность, создавая маркетинговую ценность. 20 баллов."""
+    # 2 ситуация
+    user_data[chat_id]['stage'] = 'staff_problem'
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Продолжить")
+    
+    response += f"\n\nТекущий капитал: {user_data[chat_id]['capital']:,} руб\nРейтинг: {user_data[chat_id]['rating']:.1f}"
+    bot.send_message(chat_id, response, reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text == "Продолжить")
+def continue_game(message):
+    chat_id = message.chat.id
+    if chat_id not in user_data or user_data[chat_id]['business'] != "Ресторан":
+        return send_welcome(message)
+    
+    if user_data[chat_id]['stage'] == 'staff_problem':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Игнорировать ситуацию","Уволить официанта", "Провести тренинг", "Ввести бонусы")
+        
+        bot.send_message(chat_id, f""" Ситуация 2: Проблемы с персоналом.
+Официант грубит клиентам, негативные отзывы.
+
+Текущий капитал: {user_data[chat_id]['capital']:,} руб
+Рейтинг: {user_data[chat_id]['rating']:.1f}""", reply_markup=markup)
+        
+        user_data[chat_id]['stage'] = 'waiting_staff_decision'
+
+@bot.message_handler(func=lambda message: message.text in ["Игнорировать ситуацию","Уволить официанта", "Провести тренинг", "Ввести бонусы"])
+def handle_staff_problem(message):
+    chat_id = message.chat.id
+    choice = message.text
+    
+    if chat_id not in user_data or user_data[chat_id]['business'] != "Ресторан":
+        return send_welcome(message)
+    
+    response = ""
+    if choice == "Игнорировать ситуацию":
+        user_data[chat_id]['rating'] -= 0.4
+        response = """Вы не предприняли действий:
+-Капитал: +0 руб.
+-Рейтинг: -0.4
+-Прибыль: -7% (снижение числа клиентов: 70 клиентов)
+Экономия средств. Грубость снижает рейтинг, отпугивая клиентов (70 заказов по 5 000 руб.), уменьшая прибыль.
+
+Плохое решение: игнорирование проблем с персоналом вредит репутации и клиентской базе. 0 баллов.""".format(rating=user_data[chat_id]['rating'])
+    elif choice == "Уволить официанта":
+        user_data[chat_id]['capital'] -= 80000
+        user_data[chat_id]['rating'] += 0.1
+        response = """ Вы выбрали уволить и нанять нового официанта:
+- Капитал: +80 000 руб. (пособие: 30 000 руб., обучение: 50 000 руб.)
++Рейтинг: +0.1
+- Прибыль: 0% (нейтральный поток клиентов)
+Затраты: пособие (30 000 руб.), обучение (50 000 руб.). Репутация слегка растет, прибыль нейтральна.
+
+Слабое решение: решает проблему точечно, но затраты высоки для минимального эффекта. 5 баллов.""".format(rating=user_data[chat_id]['rating'])
+    elif choice == "Провести тренинг":
+        user_data[chat_id]['capital'] -= 120000
+        user_data[chat_id]['rating'] += 0.5
+        response = """ Вы провели тренинг по сервису:
+- Капитал: -120 000 руб. (тренинг: 100 000 руб., логистика: 20 000 руб.)
++ Рейтинг: +0.5
++ Прибыль: +7% (рост числа клиентов: 70 клиентов)
+Затраты: тренинг (100 000 руб.), транспорт (20 000 руб.). Улучшение сервиса привлекает клиентов (70 заказов по 5 000 руб.), увеличивая прибыль.
+
+Хорошее решение: инвестиции в персонал окупаются ростом репутации и прибыли. 15 баллов.""".format(rating=user_data[chat_id]['rating'])   
+    elif choice == "Ввести бонусы":
+        user_data[chat_id]['capital'] += 150000
+        user_data[chat_id]['rating'] += 0.3
+        response = """ Вы ввели бонусы за хорошие отзывы:
++ Капитал: +150 000 руб. (доп. продажи: 150 000 руб.)
++ Рейтинг: +0.3
++Прибыль: +5% (доп. заказы: 50 клиентов)
+Доход от роста продаж (150 заказов по 1 000 руб.). Мотивация персонала повышает рейтинг и прибыль (50 заказов по 5 000 руб.).
+
+Отличное решение: повышает мотивацию без затрат, увеличивает доход и репутацию. 20 баллов.""".format(rating=user_data[chat_id]['rating'])
+    
+# 3 ситуация
+    user_data[chat_id]['stage'] = 'food_problem'
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Продолжить")
+    
+    response += f"\n\nТекущий капитал: {user_data[chat_id]['capital']:,} руб\nРейтинг: {user_data[chat_id]['rating']:.1f}"
+    bot.send_message(chat_id, response, reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text == "Продолжить")
+def continue_game(message):
+    chat_id = message.chat.id
+    if chat_id not in user_data or user_data[chat_id]['business'] != "Ресторан":
+        return send_welcome(message)
+    
+    if user_data[chat_id]['stage'] == 'food_problem':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Игнорировать проблему","Закупить у другого поставщика", "Обновить меню", "Акция на напитки")
+        
+        bot.send_message(chat_id, f""" Ситуация 3: Сбой в поставке продуктов. Нет ингредиентов для популярных блюд.
+
+Текущий капитал: {user_data[chat_id]['capital']:,} руб
+Рейтинг: {user_data[chat_id]['rating']:.1f}""", reply_markup=markup)
+        
+        user_data[chat_id]['stage'] = 'waiting_food_decision'
+
+@bot.message_handler(func=lambda message: message.text in ["Игнорировать проблему","Закупить у другого поставщика", "Обновить меню", "Акция на напитки"])
+def handle_food_problem(message):
+    chat_id = message.chat.id
+    choice = message.text
+    
+    if chat_id not in user_data or user_data[chat_id]['business'] != "Ресторан":
+        return send_welcome(message)
+    
+    response = ""
+    if choice == "Игнорировать проблему":
+        user_data[chat_id]['rating'] -= 0.5
+        response = """Вы работаете с ограниченным меню:
+-Капитал: +0 руб.
+-Рейтинг: -0.5
+-Прибыль: -10% (снижение числа клиентов: 100 клиентов)
+Экономия средств. Ограниченное меню снижает рейтинг и отпугивает клиентов (100 заказов по 5 000 руб.), уменьшая прибыль.
+
+Плохое решение: экономия приводит к значительным потерям клиентов и репутации. 0 баллов.""".format(rating=user_data[chat_id]['rating'])
+    elif choice == "Закупить у другого поставщика":
+        user_data[chat_id]['capital'] -= 100000
+        user_data[chat_id]['rating'] += 0.1
+        response = """ Вы выбрали временного поставщика:
+- Капитал: -100 000 руб. (продукты: 100 000 руб.)
++Рейтинг: +0.1
+- Прибыль: 0% (нейтральный поток клиентов)
+Затраты на дорогие продукты (100 000 руб.). Меню сохраняется, прибыль нейтральна.
+
+Слабое решение: сохраняет статус-кво, но затраты высоки для минимального эффекта. 5 баллов.""".format(rating=user_data[chat_id]['rating'])
+    elif choice == "Обновить меню":
+        user_data[chat_id]['capital'] -= 80000
+        user_data[chat_id]['rating'] += 0.4
+        response = """ Вы ввели новое меню с доступными продуктами:
+- Капитал: -80 000 руб. (разработка: 50 000 руб., маркетинг: 30 000 руб.)
++ Рейтинг: +0.4
++ Прибыль: +5% (рост числа клиентов: 50 клиентов)
+Затраты: шеф-повар (50 000 руб.), реклама (30 000 руб.). Новое меню привлекает клиентов (50 заказов по 5 000 руб.), увеличивая прибыль.
+
+Хорошее решение: креативный подход окупается ростом репутации и прибыли. 15 баллов.""".format(rating=user_data[chat_id]['rating'])   
+    elif choice == "Акция на напитки":
+        user_data[chat_id]['capital'] += 120000
+        user_data[chat_id]['rating'] += 0.2
+        response = """ Вы снизили цены на напитки:
++ Капитал: +120 000 руб. (продажи напитков: 120 000 руб.)
++ Рейтинг: +0.2
++Прибыль: +3% (доп. продажи: 60 клиентов)
+Доход от напитков (6 000 заказов по 20 руб.). Акция смягчает недовольство, повышая рейтинг и прибыль (60 заказов по 3 000 руб.).
+
+Отличное решение: генерирует доход, смягчает кризис, повышает лояльность. 20 баллов.""".format(rating=user_data[chat_id]['rating'])
+
+# 4 ситуация
+    user_data[chat_id]['stage'] = '112_problem'
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Продолжить")
+    
+    response += f"\n\nТекущий капитал: {user_data[chat_id]['capital']:,} руб\nРейтинг: {user_data[chat_id]['rating']:.1f}"
+    bot.send_message(chat_id, response, reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text == "Продолжить")
+def continue_game(message):
+    chat_id = message.chat.id
+    if chat_id not in user_data or user_data[chat_id]['business'] != "Ресторан":
+        return send_welcome(message)
+    
+    if user_data[chat_id]['stage'] == '112_problem':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Игнорировать требования","Минимальный ремонт", "Новая система безопасности", "Открытая экскурсия")
+        
+        bot.send_message(chat_id, f""" Ситуация 4: Пожарная инспекция. В выявлены нарушения, грозит закрытие.
+
+Текущий капитал: {user_data[chat_id]['capital']:,} руб
+Рейтинг: {user_data[chat_id]['rating']:.1f}""", reply_markup=markup)
+        
+        user_data[chat_id]['stage'] = 'waiting_112_decision'
+
+@bot.message_handler(func=lambda message: message.text in ["Игнорировать требования","Минимальный ремонт", "Новая система безопасности", "Открытая экскурсия"])
+def handle_112_problem(message):
+    chat_id = message.chat.id
+    choice = message.text
+    
+    if chat_id not in user_data or user_data[chat_id]['business'] != "Ресторан":
+        return send_welcome(message)
+    
+    response = ""
+    if choice == "Игнорировать требования":
+        user_data[chat_id]['rating'] -= 0.6
+        response = """Вы рискуете штрафами:
+-Капитал: +0 руб.
+-Рейтинг: -0.6
+-Прибыль: -15% (снижение числа клиентов: 150 клиентов)
+Экономия средств. Риск закрытия снижает рейтинг и отпугивает клиентов (150 заказов по 5 000 руб.), уменьшая прибыль.
+
+Плохое решение: высокий риск закрытия и репутационные потери. 0 баллов.""".format(rating=user_data[chat_id]['rating'])
+    elif choice == "Минимальный ремонт":
+        user_data[chat_id]['capital'] -= 200000
+        user_data[chat_id]['rating'] += 0.1
+        response = """ Вы выбрали временного поставщика:
+- Капитал: -200 000 руб. (ремонт: 200 000 руб.)
++Рейтинг: +0.1
+- Прибыль: 0% (нейтральный поток клиентов)
+Затраты на ремонт (200 000 руб.). Соответствие нормам сохраняет бизнес, прибыль нейтральна.
+
+Слабое решение: решает проблему, но затраты высоки для минимального эффекта. 5 баллов.""".format(rating=user_data[chat_id]['rating'])
+    elif choice == "Новая система безопасности":
+        user_data[chat_id]['capital'] -= 500000
+        user_data[chat_id]['rating'] += 0.5
+        response = """ Вы установили пожарную систему:
+- Капитал: -500 000 руб. (оборудование: 400 000 руб., установка: 100 000 руб.)
++ Рейтинг: +0.5
++ Прибыль: +5% (рост числа клиентов: 50 клиентов)
+Затраты: оборудование (400 000 руб.), монтаж (100 000 руб.). Безопасность привлекает клиентов (50 заказов по 5 000 руб.), увеличивая прибыль.
+
+Хорошее решение: крупные инвестиции окупаются репутацией и прибылью. 15 баллов.""".format(rating=user_data[chat_id]['rating'])   
+    elif choice == "Открытая экскурсия":
+        user_data[chat_id]['capital'] += 100000
+        user_data[chat_id]['rating'] += 0.4
+        response = """ Вы устранили нарушения и провели экскурсию:
++ Капитал: +100 000 руб. (билеты: 50 по 2 000 руб.)
++ Рейтинг: +0.4
++Прибыль: +4% (доп. заказы: 40 клиентов)
+Доход от экскурсий (50 билетов по 2 000 руб.). Прозрачность повышает рейтинг и прибыль (40 заказов по 5 000 руб.).
+
+Отличное решение: минимизирует затраты, повышает доверие и генерирует доход. 20 баллов.""".format(rating=user_data[chat_id]['rating'])
+
+
+    # Обновляем состояние и предлагаем продолжить
+    user_data[chat_id]['stage'] = 'completed_staff'
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("Закончить игру", "Начать заново")
+    
+    response += f"\n\nИтоговый капитал: {user_data[chat_id]['capital']:,} руб\nФинальный рейтинг: {user_data[chat_id]['rating']:.1f}"
+    bot.send_message(chat_id, response, reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text == "Начать заново")
+def restart_game(message):
+    send_welcome(message)
+
+@bot.message_handler(func=lambda message: message.text == "Закончить игру")
+def end_game(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "Спасибо за игру! Чтобы начать снова, нажми
