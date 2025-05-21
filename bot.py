@@ -1,116 +1,202 @@
 import telebot
 from telebot import types
-from texts import RESTAURANT_TEXTS, COMMON_TEXTS
+from texts import RESTAURANT_TEXTS, SPA_TEXTS, CAR_DEALERSHIP_TEXTS, COMMON_TEXTS
 from config import BOT_TOKEN, BUSINESS_CONFIG
 
 bot = telebot.TeleBot(BOT_TOKEN)
-user_data = {}
+
+# Хранилище состояния игроков
+user_states = {}
 
 
-def get_business_texts(business):
-    """Возвращает тексты для выбранного бизнеса"""
-    if business == "Ресторан":
-        return RESTAURANT_TEXTS
-    elif business == "Спа-салон":
-        return 1
-    else:
-        return 1
+class UserState:
+    def __init__(self, business_type):
+        config = BUSINESS_CONFIG[business_type]
+        self.capital = config["initial_capital"]
+        self.rating = 5.0
+        self.business_type = business_type
+        self.current_situation = 0
+        self.profit_multiplier = 1.0
+        self.score = 0
+        self.max_situations = config["situations"]
+
+    def apply_effect(self, effect):
+        self.capital += effect.get("capital_change", 0)
+        self.rating += effect.get("rating_change", 0)
+        self.profit_multiplier *= (1 + effect.get("profit_change", 0))
+        self.score += effect.get("score", 0)
+        self.rating = max(0, min(10, self.rating))
+        self.current_situation += 1
+
+    def get_business_texts(self):
+        return {
+            "Ресторан": RESTAURANT_TEXTS,
+            "Спа-салон": SPA_TEXTS,
+            "Автосалон": CAR_DEALERSHIP_TEXTS
+        }[self.business_type]
 
 
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("Ресторан", "Спа-салон", "Автосалон")
-    bot.send_message(message.chat.id, COMMON_TEXTS["start"], reply_markup=markup)
-
-
-@bot.message_handler(func=lambda message: message.text in BUSINESS_CONFIG.keys())
-def handle_business_choice(message):
-    chat_id = message.chat.id
-    business = message.text
-    texts = get_business_texts(business)
-
-    user_data[chat_id] = {
-        'business': business,
-        'capital': BUSINESS_CONFIG[business]["initial_capital"],
-        'rating': 5.0,
-        'stage': 1,
-        'texts': texts
-    }
-
-    # Показываем первую ситуацию
-    show_situation(chat_id, 1)
-
-
-def show_situation(chat_id, situation_num):
-    """Показывает ситуацию с соответствующим номером"""
-    data = user_data[chat_id]
-    texts = data['texts']
-
-    if situation_num == 1:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(*texts["situation1"].keys())
-
-        bot.send_message(
-            chat_id,
-            texts["start"].format(
-                business=data['business'],
-                capital=data['capital'],
-                rating=data['rating']
-            ),
-            reply_markup=markup
-        )
-
-    elif situation_num == 2:
-        # Аналогично для ситуации 2
-        pass
-
-
-@bot.message_handler(func=lambda message: message.text in RESTAURANT_TEXTS["situation1"].keys())
-def handle_situation1_choice(message):
-    chat_id = message.chat.id
-    choice = message.text
-    data = user_data[chat_id]
-
-    # Обработка выбора и изменение состояния
-    if choice == "Игнорировать жалобу":
-        data['rating'] -= 0.3
-        response = data['texts']["situation1"]["ignore"]
-    elif choice == "Извиниться и предложить скидку":
-        data['rating'] += 0.2
-        data['capital'] -= 50000
-        response = data['texts']["situation1"]["discount"]
-    # ... другие варианты
-
-    # Переход к следующей ситуации
-    data['stage'] += 1
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(COMMON_TEXTS["continue"])
+def start(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add(*BUSINESS_CONFIG.keys())
 
     bot.send_message(
-        chat_id,
-        response + f"\n\nТекущий капитал: {data['capital']:,} руб\nРейтинг: {data['rating']:.1f}",
+        chat_id=message.chat.id,
+        text=COMMON_TEXTS["start"],
         reply_markup=markup
     )
 
 
-# ... аналогичные обработчики для других ситуаций
+@bot.message_handler(func=lambda message: message.text in BUSINESS_CONFIG)
+def select_business(message):
+    user_id = message.chat.id
+    business_type = message.text
+    user_states[user_id] = UserState(business_type)
+    user_state = user_states[user_id]
+
+    business_texts = user_state.get_business_texts()
+    start_text = business_texts[business_type]["start"].format(
+        business=business_type,
+        capital=user_state.capital,
+        rating=user_state.rating
+    )
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(COMMON_TEXTS["continue"])
+
+    bot.send_message(
+        chat_id=user_id,
+        text=start_text,
+        reply_markup=markup
+    )
+
 
 @bot.message_handler(func=lambda message: message.text == COMMON_TEXTS["continue"])
 def continue_game(message):
-    chat_id = message.chat.id
-    data = user_data[chat_id]
-    show_situation(chat_id, data['stage'])
+    user_id = message.chat.id
+    user_state = user_states.get(user_id)
+
+    if not user_state:
+        return start(message)
+
+    if user_state.current_situation >= user_state.max_situations:
+        return end_game(user_id)
+
+    send_situation(user_id)
+
+
+def send_situation(user_id):
+    user_state = user_states[user_id]
+    business_texts = user_state.get_business_texts()
+    situation_num = user_state.current_situation + 1
+    situation_key = f"situation{situation_num}"
+
+    if situation_key not in business_texts[user_state.business_type]:
+        return end_game(user_id)
+
+    situation = business_texts[user_state.business_type][situation_key]
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(*situation["options"].keys())
+
+    status_text = f"""{situation['description']}
+
+Текущее состояние:
+• Капитал: {user_state.capital:,} руб
+• Рейтинг: {user_state.rating:.1f}/10
+• Баллы: {user_state.score}"""
+
+    bot.send_message(
+        chat_id=user_id,
+        text=status_text,
+        reply_markup=markup
+    )
+
+
+def end_game(user_id):
+    user_state = user_states[user_id]
+    business_texts = user_state.get_business_texts()
+
+    final_text = f"""
+
+Итоговые результаты ({user_state.business_type}):
+ Капитал: {user_state.capital:,} руб
+ Рейтинг: {user_state.rating:.1f}/10
+ Набрано баллов: {user_state.score}
+
+{COMMON_TEXTS["end"]}"""
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(COMMON_TEXTS["restart"])
+
+    bot.send_message(
+        chat_id=user_id,
+        text=final_text,
+        reply_markup=markup
+    )
 
 
 @bot.message_handler(func=lambda message: message.text == COMMON_TEXTS["restart"])
-def restart_game(message):
-    send_welcome(message)
+def restart(message):
+    start(message)
 
 
-@bot.message_handler(func=lambda message: message.text == "Закончить игру")
-def end_game(message):
-    bot.send_message(message.chat.id, COMMON_TEXTS["end"])
+@bot.message_handler(func=lambda message: True)
+def handle_choice(message):
+    user_id = message.chat.id
+    user_state = user_states.get(user_id)
+
+    if not user_state:
+        return
+
+    business_texts = user_state.get_business_texts()
+    situation_num = user_state.current_situation + 1
+    situation_key = f"situation{situation_num}"
+
+    if situation_key not in business_texts[user_state.business_type]:
+        return end_game(user_id)  # Если ситуации закончились
+
+    situation = business_texts[user_state.business_type][situation_key]
+
+    if message.text not in situation["options"]:
+        bot.send_message(user_id, "Пожалуйста, выберите один из предложенных вариантов")
+        return
+
+    choice_data = situation["options"][message.text]
+    effect = {
+        "capital_change": choice_data["capital_change"],
+        "rating_change": choice_data["rating_change"],
+        "profit_change": choice_data["profit_change"],
+        "score": choice_data["score"]
+    }
+    user_state.apply_effect(effect)
+
+    response = choice_data["response"].format(
+        capital=user_state.capital,
+        rating=user_state.rating
+    )
+
+    # Отправляем ответ на выбор
+    bot.send_message(
+        chat_id=user_id,
+        text=response
+    )
+
+    # Проверяем, была ли это последняя ситуация
+    if user_state.current_situation >= user_state.max_situations:
+        end_game(user_id)  # Показываем итоги сразу
+    else:
+        # Показываем кнопку "Продолжить" только если есть еще ситуации
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(COMMON_TEXTS["continue"])
+        bot.send_message(
+            chat_id=user_id,
+            text="Возникла новая проблема:",
+            reply_markup=markup
+        )
 
 
-bot.polling()
+if __name__ == "__main__":
+    print("Бот запущен...")
+    bot.polling(none_stop=True)
