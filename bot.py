@@ -104,7 +104,7 @@ def send_situation(user_id):
 
 Текущее состояние:
 • Капитал: {user_state.capital:,} руб
-• Рейтинг: {user_state.rating:.1f}/10
+• Рейтинг: {user_state.rating:.1f}
 • Баллы: {user_state.score}"""
 
     bot.send_message(
@@ -122,8 +122,8 @@ def end_game(user_id):
 
 Итоговые результаты ({user_state.business_type}):
  Капитал: {user_state.capital:,} руб
- Рейтинг: {user_state.rating:.1f}/10
- Набрано баллов: {user_state.score}
+ Рейтинг: {user_state.rating:.1f}
+ Набрано баллов: {user_state.score}/80
 
 {COMMON_TEXTS["end"]}"""
 
