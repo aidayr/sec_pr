@@ -118,13 +118,24 @@ def end_game(user_id):
     user_state = user_states[user_id]
     business_texts = user_state.get_business_texts()
 
-    final_text = f"""
+    i = user_state.score
+    a = ["Вы успешно справились с кризисными ситуациями и провели свою компанию через испытания. Вот ваши результаты: ",
+         "normaldake", "krasava marat"]
+    if int(i) <= 25:
+        s = a[2]
+    elif int(i) > 25 and int(i) <= 55:
+        s = a[1]
+    else:
+        s = a[0]
 
-Итоговые результаты ({user_state.business_type}):
+    final_text = f"""
+{s}
+
+📊Итоговые результаты ({user_state.business_type}):
  Капитал: {user_state.capital:,} руб
  Рейтинг: {user_state.rating:.1f}
  Набрано баллов: {user_state.score}/80
-
+ 
 {COMMON_TEXTS["end"]}"""
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
